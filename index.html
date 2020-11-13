@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html>
+<head>
+	
+	<title>Cartisan Payed Remote Mapping</title>
+
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	
+	<link rel="shortcut icon" type="image/x-icon" href="docs/images/favicon.ico" />
+
+    <link rel="stylesheet" href="leaflet.css" />
+    <script src="leaflet.js"></script>
+	<script src="leaflet.ajax.min.js"></script>
+	<script src="d3.min.js"></script>
+
+<style>
+
+	table, caption, tbody, tfoot, thead, tr, th, td {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: 100%;
+  font: inherit;
+  vertical-align: baseline;
+}
+table {
+  border-spacing: 0;
+}
+
+
+	body {
+		padding: 40px 10px;
+		font-family: Trebuchet MS,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif;
+	}
+	#mapid {
+		width: 100%;
+		max-width: 80vw;
+		display: block;
+		margin: 0 auto;
+	}
+
+	@media all and (max-width: 500px) {
+		#mapid {
+			max-width: 500px;
+		}
+	}
+
+	h1 {
+		text-align: center;
+		color: #666;
+		font-family: sans-serif;
+	}
+
+	h2 {
+		text-align: center;
+		color: #666;
+		font-family: sans-serif;
+	}
+
+	.title {
+		max-width: 700px;
+		width: 100%;
+		display: block;
+		margin: 0 auto;
+		margin-bottom: 50px;
+	}
+	
+	.stats {
+		max-width: 300px;
+		width: 100%;
+		display: block;
+		margin: 0 auto;
+		margin-bottom: 50px;
+		line-height: 175%;
+	}
+
+	#earnings-table {
+		max-width: 500px;
+		width: 100%;
+		display: block;
+		margin: 0 auto 60px;
+	}
+
+	#earnings-table table {
+		max-width: 500px;
+		width: 100%;
+		border: 1px solid #eee;
+		border-radius: 6px;
+	}
+
+	#earnings-table th {
+		font-weight: bold;
+		border-bottom: 1px solid #eee;
+		background-color: #eee;
+	}
+
+	#earnings-table th:first-child {
+		border-top-left-radius: 6px;
+		/*border-right: 1px solid #ddd;*/
+	}
+
+	#earnings-table th:last-child {
+		border-top-right-radius: 6px;
+		/*border-left: 1px solid #ddd;*/
+	}
+
+	#earnings-table td, #earnings-table th {
+		text-align: center;
+		padding: 8px;
+	}
+
+	#earnings-table tr {
+		border-top: 1px solid #eee;
+	}
+
+	.permanent-tooltip-red, .permanent-tooltip-yellow, .permanent-tooltip-green {
+		background-color: transparent;
+		box-shadow: none;
+		border: none;
+		font-weight: bold;
+		text-align: center;
+	}
+
+	.permanent-tooltip-red {
+		color: #e8554e;
+	}
+	
+	.permanent-tooltip-yellow {
+		color: #544d04;
+
+	}
+	
+	.permanent-tooltip-green {
+		color: #2aa876;
+	}
+	
+	#pricedata-all, #pricedata-left {
+	display:inline;
+	float: right;
+	}
+	.permanent-tooltip {
+	display: none;
+	}
+
+</style>
+	
+</head>
+<body>
+
+<header class="title">
+<h1>TeachOSM 1084: Syunik Legend Trails Remote Mapping</h1>
+<h2>PIN/cartisan</h2>
+</header>
+
+<section id="earnings-table"></section>
+
+<div class="stats">
+Total funds for this project:
+<div id="pricedata-all"></div></br>
+Funds still available: 
+<div id="pricedata-left"></div>
+
+</div>
+
+<div id="mapid" style="width: 80%; height: 750px;">
+<h4>Legend</h4>
+</div>
+
+
+<script>
+
+	var flatData = [];
+	var data = d3.json('data.geojson').then(function(d){
+		
+
+		// make the data flat
+		d.features.forEach(function(feature){
+			flatData.push(feature.properties);
+		});
+
+		// count the number of squares per mapper and total earnings per mapper
+
+		var mapperData = d3.nest()
+			.key(function(d) { return d.mapper; })
+			.rollup(function(v) { return  { 
+				nSquares : v.filter(function(d){ return d.validated }).length,
+				totalEarnings : d3.sum(v, function(d){ 
+					if(d.validated)
+						return d.price 
+					else 
+						return 0;
+				 })
+			}; })
+			.entries(flatData);
+			
+			var priceDataMapped = d3.sum(flatData, function(d){ 
+					if(d.mapper)
+						return d.price 
+					else 
+						return 0;
+				 });
+				 
+			var priceDataAll = d3.sum(flatData, function(d){ 
+						return d.price 
+				 });
+
+			
+			console.log("HHHHHHHHHHHHHH" + priceDataAll);
+			
+			d3.select('#pricedata-all').text("$" + priceDataAll.toString());
+			d3.select('#pricedata-left').text("$" + Math.round((priceDataAll-priceDataMapped).toString()*100)/100);
+		console.log(mapperData);
+
+		var tableData = [];
+		mapperData.forEach(function(mapper){
+
+			if(mapper.key != "null"){
+				tableData.push(	{
+					name : mapper.key,
+					nSquares : mapper.value.nSquares,
+					totalEarnings : mapper.value.totalEarnings,
+				})
+			}
+		});
+
+		
+		tableData.sort(function(a, b){
+			if(a.totalEarnings < b.totalEarnings) return 1;
+			if(b.totalEarnings < a.totalEarnings) return -1;
+
+			return 0;
+		});
+
+		console.log(tableData)
+
+		var columns = ['OSM Name', 'Finished Squares', 'Earnings (US Dollars)'];
+
+		var table = d3.select('#earnings-table').append("table"),
+			thead = table.append('thead').append('tr')
+				.selectAll('th')
+				.data(columns).enter()
+				.append('th')
+				.text(function(d){ return d}),
+
+			tablebody = table.append("tbody"),
+        	rows = tablebody
+                .selectAll("tr")
+                .data(tableData)
+                .enter()
+                .append("tr"),
+        	cells = rows.selectAll("td")
+                .data(function(d) {
+                    console.log(d);
+                    return [d.name, d.nSquares, "$" + d.totalEarnings];
+                })
+                .enter()
+                .append("td")
+                .text(function(d) {
+                    return d;
+                });
+	});
+
+	
+
+
+	var mymap = L.map('mapid').setView([39.35, 46.3], 12);
+
+/*
+	mymap.on('zoomstart', function(e) {
+
+		var zoom = e.target._animateToZoom;
+
+  		if(zoom < 13) {	
+  			 document.querySelectorAll('.permanent-tooltip').forEach(function(e){
+  			 	e.style.display = "none";;
+  			 });
+  		} else {
+  			document.querySelectorAll('.permanent-tooltip').forEach(function(e){
+  			 	e.style.display = "block";;
+  			 });
+  		}
+  	});
+*/
+
+	mymap.on('zoomend', function(e) {
+
+		var zoom = map.getZoom();
+		
+  		if(zoom < 13) {	
+  			 document.querySelectorAll('.permanent-tooltip').forEach(function(e){
+  			 	e.style.display = "none";;
+  			 });
+  		} else {
+  			document.querySelectorAll('.permanent-tooltip').forEach(function(e){
+  			 	e.style.display = "block";;
+  			 });
+  		}
+  	});
+	L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw', {
+		maxZoom: 18,
+		attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, ' +
+			'<a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, ' +
+			'Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+		id: 'mapbox/streets-v11',
+		tileSize: 512,
+		zoomOffset: -1,
+	}).addTo(mymap);
+
+// Define a style
+var myStyle = function(feature) {
+
+
+	var color = "#ccc";
+
+	if(feature.properties.validated){
+		color = "#2aa876"
+	}else if(feature.properties.mapper){
+		color = "#ffd265"
+	} else {
+		color = "#e8554e"
+	}
+
+	return {
+        "color": color,
+        "weight": 1,
+        "opacity": 0.65,
+        "clickable": true,
+    };
+    };	
+
+	var geojsonLayer = new L.GeoJSON.AJAX("data.geojson",{
+         style:myStyle,
+         onEachFeature: function (feature, layer) {
+
+         	var color;
+         	var status;
+         	if(feature.properties.validated){
+				color = "green";
+				status = "Finished";
+			}else if(feature.properties.mapper){
+				color = "yellow";
+				status = "Mapped, not validated";
+			} else {
+				color = "red"
+				status = "Not mapped";
+			}
+
+         	var validated = feature.properties.validated ? "True" : "False";
+
+         	var mapperString = feature.properties.mapper ? ("<b>Mapper: </b>" + feature.properties.mapper + "<br />") : ""; 
+
+         	var mapperName = feature.properties.mapper ? (feature.properties.mapper + "<br />") : ""; 
+
+         	var hoverContent = "<b>ID: </b>" + feature.properties.taskId.toString() + "<br /><b>Price: </b>$" + feature.properties.price.toString() + "<br />" 
+         	+ mapperString
+         	+ "<b>Status: </b>" + status;
+
+       		layer.bindPopup(hoverContent);
+       		layer.bindTooltip("<b>ID: </b>" + feature.properties.taskId.toString() + "<br />" + mapperName + "$" + feature.properties.price.toString(), {permanent: true, direction:"center", className:"permanent-tooltip permanent-tooltip-"+color});
+       		
+    }
+     });    
+
+	geojsonLayer.addTo(mymap);
+
+
+	
+
+
+</script>
+
+
+
+</body>
+</html>
